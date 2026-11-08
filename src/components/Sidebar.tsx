@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ColorOccurrence } from '../lib/colors'
-import { toHexForPicker } from '../lib/colors'
+import { formatRgbLabel } from '../lib/colors'
 import {
   groupPaletteByCategory,
   type PaletteCategoryId,
 } from '../lib/categories'
 import { styleDownloadFilename } from '../lib/filename'
 import { OFFICIAL_STYLES, type StyleId } from '../lib/styles'
+import { ColorEditor } from './ColorEditor'
 
 interface SidebarProps {
   styleId: StyleId
@@ -48,6 +49,7 @@ export function Sidebar({
   const [collapsed, setCollapsed] = useState<Set<PaletteCategoryId>>(
     () => new Set(),
   )
+  const [editingColor, setEditingColor] = useState<string | null>(null)
 
   const groupKey = groups.map((g) => g.id).join('|')
 
@@ -64,6 +66,17 @@ export function Sidebar({
       setCollapsed(new Set())
     }
   }, [styleId, groupKey])
+
+  useEffect(() => {
+    setEditingColor(null)
+  }, [styleId])
+
+  const editingItem = editingColor
+    ? palette.find((item) => item.color === editingColor)
+    : null
+  const editingCurrent = editingColor
+    ? (remap[editingColor] ?? editingColor)
+    : null
 
   const toggleCategory = (id: PaletteCategoryId) => {
     setCollapsed((prev) => {
@@ -188,31 +201,38 @@ export function Sidebar({
                     {group.items.map((item) => {
                       const current = remap[item.color] ?? item.color
                       const changed = current !== item.color
+                      const isEditing = editingColor === item.color
                       return (
                         <li
                           key={item.color}
-                          className={`color-row ${changed ? 'is-changed' : ''}`}
+                          className={`color-row ${changed ? 'is-changed' : ''} ${isEditing ? 'is-editing' : ''}`}
                         >
-                          <label className="swatch-wrap" title={item.color}>
+                          <button
+                            type="button"
+                            className="swatch-wrap"
+                            data-swatch-key={item.color}
+                            title={formatRgbLabel(item.color)}
+                            aria-label={`調整顏色 ${formatRgbLabel(item.color)}`}
+                            aria-expanded={isEditing}
+                            onClick={() =>
+                              setEditingColor(isEditing ? null : item.color)
+                            }
+                          >
                             <span
                               className="swatch"
                               style={{ background: current }}
                             />
-                            <input
-                              type="color"
-                              className="swatch-input"
-                              value={toHexForPicker(current)}
-                              onChange={(e) =>
-                                onColorChange(item.color, e.target.value)
-                              }
-                              aria-label={`調整顏色 ${item.color}`}
-                            />
-                          </label>
+                          </button>
                           <div className="color-meta">
-                            <code className="color-code">{item.color}</code>
+                            <code className="color-code" title={item.color}>
+                              {formatRgbLabel(item.color)}
+                            </code>
                             {changed && (
-                              <code className="color-code color-code-new">
-                                → {current}
+                              <code
+                                className="color-code color-code-new"
+                                title={current}
+                              >
+                                → {formatRgbLabel(current)}
                               </code>
                             )}
                             <span className="color-hint">
@@ -236,14 +256,37 @@ export function Sidebar({
         </div>
       </section>
 
+      {editingColor && editingItem && editingCurrent != null && (
+        <ColorEditor
+          original={editingColor}
+          current={editingCurrent}
+          getAnchor={() => {
+            const node = document.querySelector(
+              `[data-swatch-key=${JSON.stringify(editingColor)}]`,
+            )
+            return node?.getBoundingClientRect() ?? null
+          }}
+          onChange={(next) => onColorChange(editingColor, next)}
+          onClose={() => setEditingColor(null)}
+        />
+      )}
+
       <footer className="sidebar-credit">
         <p>
           地圖樣式與圖磚：
-          <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">
+          <a
+            href="https://openfreemap.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             OpenFreeMap
           </a>
           {' · '}
-          <a href="https://www.openmaptiles.org/" target="_blank" rel="noreferrer">
+          <a
+            href="https://www.openmaptiles.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             © OpenMapTiles
           </a>
         </p>
@@ -252,7 +295,7 @@ export function Sidebar({
           <a
             href="https://www.openstreetmap.org/copyright"
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
           >
             OpenStreetMap
           </a>{' '}

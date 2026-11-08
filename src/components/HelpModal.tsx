@@ -151,14 +151,18 @@ const map = new maplibregl.Map({
             <pre className="help-code">{`OpenFreeMap © OpenMapTiles Data from OpenStreetMap`}</pre>
             <p>
               詳見{' '}
-              <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">
+              <a
+                href="https://openfreemap.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 OpenFreeMap
               </a>
               、
               <a
                 href="https://www.openstreetmap.org/copyright"
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
               >
                 OpenStreetMap copyright
               </a>

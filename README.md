@@ -59,5 +59,5 @@ OpenFreeMap © OpenMapTiles Data from OpenStreetMap
 - 只擷取**字串字面量**色碼：`#hex`、`rgb()`／`rgba()`、`hsl()`／`hsla()`，以及常見具名色彩
 - 會遞迴走訪 Mapbox style expression（如 `interpolate`、`case`、`match`）中的字串
 - **不會**把 data-driven 的屬性參考或非色彩字串當成顏色
-- `<input type="color">` 只能輸出 `#rrggbb`；改色後會以 hex 寫回 style（原始 `rgb()`／`hsl()` 字串會被替換成 hex）
+- 取色器旁有不透明度滑桿；不透明輸出 `#rrggbb`，半透明輸出 `rgba(...)`（可保留官方樣式的 alpha）
 - 空白差異視為不同 token（例如 `rgb(230, 233, 229)` 與 `rgb(230,233,229)` 若同時出現會分列）

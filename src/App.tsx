@@ -5,7 +5,7 @@ import { MapView } from './components/MapView'
 import { Sidebar } from './components/Sidebar'
 import { applyColorRemap, extractPaletteFromStyle } from './lib/colors'
 import { styleDownloadFilename } from './lib/filename'
-import { parseHash, writeHash } from './lib/hashState'
+import { parseHash, sanitizeStyleName, writeHash } from './lib/hashState'
 import { fetchOfficialStyle, type StyleId } from './lib/styles'
 
 function readInitialStyleId(): StyleId {
@@ -20,8 +20,12 @@ function readInitialRemap(): Record<string, string> {
 
 function readInitialStyleName(styleId: StyleId): string {
   const parsed = parseHash(window.location.hash)
-  const fromHash = parsed?.styleName?.trim()
-  return fromHash || styleId
+  return sanitizeStyleName(parsed?.styleName) || styleId
+}
+
+function handleStyleNameInput(name: string): string {
+  // 輸入中保留空白，只截斷長度；寫入 hash 時再 trim
+  return name.slice(0, 80)
 }
 
 export default function App() {
@@ -152,7 +156,7 @@ export default function App() {
         error={error}
         statusMessage={statusMessage}
         onStyleChange={handleStyleChange}
-        onStyleNameChange={setStyleName}
+        onStyleNameChange={(name) => setStyleName(handleStyleNameInput(name))}
         onColorChange={handleColorChange}
         onReset={handleReset}
         onCopy={handleCopy}
