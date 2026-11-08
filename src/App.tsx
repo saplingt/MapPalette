@@ -130,6 +130,16 @@ export default function App() {
     setStatusMessage(`已下載 ${a.download}`)
   }, [remappedStyle, styleName, styleId])
 
+  const handleShare = useCallback(async () => {
+    const url = window.location.href
+    try {
+      await navigator.clipboard.writeText(url)
+      setStatusMessage('已複製分享網址')
+    } catch {
+      setError('無法複製網址，請手動從網址列複製')
+    }
+  }, [])
+
   return (
     <div className="app-shell">
       <div className="atmosphere" aria-hidden="true" />
@@ -147,6 +157,7 @@ export default function App() {
         onReset={handleReset}
         onCopy={handleCopy}
         onDownload={handleDownload}
+        onShare={handleShare}
         onOpenHelp={() => setHelpOpen(true)}
       />
       <main className="map-stage">

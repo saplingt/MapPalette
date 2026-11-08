@@ -22,6 +22,7 @@ interface SidebarProps {
   onReset: () => void
   onCopy: () => void
   onDownload: () => void
+  onShare: () => void
   onOpenHelp: () => void
 }
 
@@ -39,6 +40,7 @@ export function Sidebar({
   onReset,
   onCopy,
   onDownload,
+  onShare,
   onOpenHelp,
 }: SidebarProps) {
   const remappedCount = Object.entries(remap).filter(([a, b]) => a !== b).length
@@ -133,6 +135,9 @@ export function Sidebar({
         <div className="action-row">
           <button type="button" className="btn btn-ghost" onClick={onReset} disabled={loading}>
             重設
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={onShare}>
+            分享網址
           </button>
           <button type="button" className="btn btn-ghost" onClick={onCopy} disabled={loading}>
             複製 JSON
