@@ -42,6 +42,18 @@ npm run preview
 
 Vite、React、TypeScript、Tailwind CSS v4、MapLibre GL JS
 
+## 來源與標註
+
+本專案以 [OpenFreeMap](https://openfreemap.org/) 公開樣式與圖磚為底，地圖資料來自 [OpenStreetMap](https://www.openstreetmap.org/copyright)。
+
+建議標註（MapLibre 地圖上也會顯示）：
+
+```text
+OpenFreeMap © OpenMapTiles Data from OpenStreetMap
+```
+
+匯出並使用重映射後的 `style.json` 時，請保留地圖上的 attribution，並遵守 OpenFreeMap／OpenStreetMap／OpenMapTiles 的授權要求。
+
 ## 色彩擷取注意事項
 
 - 只擷取**字串字面量**色碼：`#hex`、`rgb()`／`rgba()`、`hsl()`／`hsla()`，以及常見具名色彩

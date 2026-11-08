@@ -43,7 +43,11 @@ export function MapView({ style }: MapViewProps) {
       },
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
-      attributionControl: { compact: true },
+      attributionControl: {
+        compact: true,
+        customAttribution:
+          'OpenFreeMap © OpenMapTiles Data from OpenStreetMap',
+      },
     })
 
     map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right')

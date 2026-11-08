@@ -143,6 +143,30 @@ const map = new maplibregl.Map({
           </section>
 
           <section className="help-section">
+            <h3>來源標註</h3>
+            <p>
+              使用 OpenFreeMap 圖磚／樣式時必須標註來源。MapLibre
+              通常會自動顯示；若自行嵌入或用於印刷／影片，請加上：
+            </p>
+            <pre className="help-code">{`OpenFreeMap © OpenMapTiles Data from OpenStreetMap`}</pre>
+            <p>
+              詳見{' '}
+              <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">
+                OpenFreeMap
+              </a>
+              、
+              <a
+                href="https://www.openstreetmap.org/copyright"
+                target="_blank"
+                rel="noreferrer"
+              >
+                OpenStreetMap copyright
+              </a>
+              。
+            </p>
+          </section>
+
+          <section className="help-section">
             <h3>注意事項</h3>
             <ul>
               <li>
@@ -153,10 +177,7 @@ const map = new maplibregl.Map({
                 若之後官方更新樣式，你的 JSON 不會自動同步；需要時可回 MapPalette
                 重新匯出。
               </li>
-              <li>
-                請遵守 OpenStreetMap／OpenFreeMap／OpenMapTiles
-                的資料與標註要求，地圖上保留適當 attribution。
-              </li>
+              <li>匯出 JSON 後請保留地圖 attribution，勿隱藏或遮住標註。</li>
             </ul>
           </section>
         </div>

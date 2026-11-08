@@ -501,6 +501,36 @@ body {
   flex-direction: column;
 }
 
+.sidebar-credit {
+  margin-top: auto;
+  padding: 0.55rem 0.35rem 0.15rem;
+  border-top: 1px solid rgba(232, 239, 230, 0.08);
+}
+
+.sidebar-credit p {
+  margin: 0;
+  font-size: 0.65rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.sidebar-credit p + p {
+  margin-top: 0.15rem;
+}
+
+.sidebar-credit a {
+  color: rgba(196, 214, 122, 0.9);
+  text-decoration: none;
+}
+
+.sidebar-credit a:hover {
+  text-decoration: underline;
+}
+
+.help-section a {
+  color: var(--accent);
+}
+
 .palette-head {
   display: flex;
   align-items: baseline;

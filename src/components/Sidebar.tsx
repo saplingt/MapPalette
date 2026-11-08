@@ -235,6 +235,30 @@ export function Sidebar({
           )}
         </div>
       </section>
+
+      <footer className="sidebar-credit">
+        <p>
+          地圖樣式與圖磚：
+          <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">
+            OpenFreeMap
+          </a>
+          {' · '}
+          <a href="https://www.openmaptiles.org/" target="_blank" rel="noreferrer">
+            © OpenMapTiles
+          </a>
+        </p>
+        <p>
+          資料來源：
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noreferrer"
+          >
+            OpenStreetMap
+          </a>{' '}
+          contributors
+        </p>
+      </footer>
     </aside>
   )
 }
