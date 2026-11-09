@@ -479,6 +479,10 @@ body {
   gap: 0.4rem;
 }
 
+.action-row-history {
+  margin-top: 0.45rem;
+}
+
 .btn {
   appearance: none;
   border: 1px solid transparent;
@@ -726,8 +730,9 @@ body {
   min-width: 0;
 }
 
-.color-code-new {
-  color: var(--accent);
+.color-code-prev {
+  color: var(--ink-muted);
+  font-size: 0.68rem;
 }
 
 .color-hint {

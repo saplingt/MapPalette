@@ -14,13 +14,22 @@ interface SidebarProps {
   styleName: string
   palette: ColorOccurrence[]
   remap: Record<string, string>
+  /** 本機「修改前」顏色；分享連結不會帶這份資料 */
+  previous: Record<string, string>
   loading: boolean
   error: string | null
   statusMessage: string | null
+  canUndo: boolean
+  canRedo: boolean
+  canClearHistory: boolean
   onStyleChange: (id: StyleId) => void
   onStyleNameChange: (name: string) => void
   onColorChange: (original: string, next: string) => void
+  onColorGestureEnd: () => void
   onReset: () => void
+  onClearHistory: () => void
+  onUndo: () => void
+  onRedo: () => void
   onCopy: () => void
   onDownload: () => void
   onShare: () => void
@@ -32,13 +41,21 @@ export function Sidebar({
   styleName,
   palette,
   remap,
+  previous,
   loading,
   error,
   statusMessage,
+  canUndo,
+  canRedo,
+  canClearHistory,
   onStyleChange,
   onStyleNameChange,
   onColorChange,
+  onColorGestureEnd,
   onReset,
+  onClearHistory,
+  onUndo,
+  onRedo,
   onCopy,
   onDownload,
   onShare,
@@ -52,8 +69,8 @@ export function Sidebar({
   const [editingColor, setEditingColor] = useState<string | null>(null)
 
   const groupKey = groups.map((g) => g.id).join('|')
+  const showHistoryNav = canUndo || canRedo || canClearHistory
 
-  // 窄螢幕預設全部收合，避免色票區被撐爆；桌面則展開
   useEffect(() => {
     const narrow = window.matchMedia('(max-width: 900px)').matches
     if (narrow) {
@@ -69,7 +86,8 @@ export function Sidebar({
 
   useEffect(() => {
     setEditingColor(null)
-  }, [styleId])
+    onColorGestureEnd()
+  }, [styleId, onColorGestureEnd])
 
   const editingItem = editingColor
     ? palette.find((item) => item.color === editingColor)
@@ -85,6 +103,11 @@ export function Sidebar({
       else next.add(id)
       return next
     })
+  }
+
+  const closeEditor = () => {
+    setEditingColor(null)
+    onColorGestureEnd()
   }
 
   return (
@@ -159,6 +182,35 @@ export function Sidebar({
             下載 JSON
           </button>
         </div>
+        {showHistoryNav && (
+          <div className="action-row action-row-history" role="group" aria-label="改色歷史">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={onUndo}
+              disabled={!canUndo}
+            >
+              前一步
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={onRedo}
+              disabled={!canRedo}
+            >
+              後一步
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={onClearHistory}
+              disabled={!canClearHistory}
+              title="清除 sessionStorage 中的改色歷史與修改前顏色"
+            >
+              清空歷史紀錄
+            </button>
+          </div>
+        )}
         {statusMessage && <p className="status-ok">{statusMessage}</p>}
         {error && <p className="status-err">{error}</p>}
       </section>
@@ -200,6 +252,10 @@ export function Sidebar({
                   <ul className="color-group-list">
                     {group.items.map((item) => {
                       const current = remap[item.color] ?? item.color
+                      const prevColor = previous[item.color]
+                      const hasPrevious =
+                        typeof prevColor === 'string' &&
+                        prevColor !== current
                       const changed = current !== item.color
                       const isEditing = editingColor === item.color
                       return (
@@ -211,8 +267,8 @@ export function Sidebar({
                             type="button"
                             className="swatch-wrap"
                             data-swatch-key={item.color}
-                            title={formatRgbLabel(item.color)}
-                            aria-label={`調整顏色 ${formatRgbLabel(item.color)}`}
+                            title={formatRgbLabel(current)}
+                            aria-label={`調整顏色 ${formatRgbLabel(current)}`}
                             aria-expanded={isEditing}
                             onClick={() =>
                               setEditingColor(isEditing ? null : item.color)
@@ -224,15 +280,15 @@ export function Sidebar({
                             />
                           </button>
                           <div className="color-meta">
-                            <code className="color-code" title={item.color}>
-                              {formatRgbLabel(item.color)}
+                            <code className="color-code" title={current}>
+                              {formatRgbLabel(current)}
                             </code>
-                            {changed && (
+                            {hasPrevious && (
                               <code
-                                className="color-code color-code-new"
-                                title={current}
+                                className="color-code color-code-prev"
+                                title={prevColor}
                               >
-                                → {formatRgbLabel(current)}
+                                前：{formatRgbLabel(prevColor)}
                               </code>
                             )}
                             <span className="color-hint">
@@ -267,7 +323,7 @@ export function Sidebar({
             return node?.getBoundingClientRect() ?? null
           }}
           onChange={(next) => onColorChange(editingColor, next)}
-          onClose={() => setEditingColor(null)}
+          onClose={closeEditor}
         />
       )}
 

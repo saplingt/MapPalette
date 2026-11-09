@@ -7,7 +7,8 @@
 - 切換官方樣式：Positron／Bright／Dark
 - 掃描 layers 的 paint／layout 色彩屬性（含 expression 內的字面色碼）
 - 每個唯一色彩附取色器；全域替換後以 MapLibre 即時重繪
-- 以 URL hash 保存樣式與色彩對應，分享連結即可還原
+- 以 URL hash 保存樣式出處、名稱與目前色彩 JSON，分享連結即可還原目前配色
+- 「修改前」顏色與前一步／後一步歷史只存在本機瀏覽器，不會隨網址分享
 - 重設／複製 JSON／下載 JSON
 
 ## 快速開始
