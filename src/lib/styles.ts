@@ -1,6 +1,6 @@
 import type { StyleSpecification } from 'maplibre-gl'
 
-export type StyleId = 'positron' | 'bright' | 'dark'
+export type StyleId = 'positron' | 'bright' | 'liberty' | 'dark' | 'fiord'
 
 export interface OfficialStyle {
   id: StyleId
@@ -9,7 +9,7 @@ export interface OfficialStyle {
   url: string
 }
 
-/** OpenFreeMap 官方樣式端點（這些 URL 直接回傳 JSON；`/style.json` 會 404）。 */
+/** OpenFreeMap 官方樣式（順序與官網一致；URL 直接回傳 JSON，`/style.json` 會 404）。 */
 export const OFFICIAL_STYLES: OfficialStyle[] = [
   {
     id: 'positron',
@@ -24,10 +24,22 @@ export const OFFICIAL_STYLES: OfficialStyle[] = [
     url: 'https://tiles.openfreemap.org/styles/bright',
   },
   {
+    id: 'liberty',
+    label: 'Liberty',
+    labelEn: 'Liberty',
+    url: 'https://tiles.openfreemap.org/styles/liberty',
+  },
+  {
     id: 'dark',
     label: 'Dark',
     labelEn: 'Dark',
     url: 'https://tiles.openfreemap.org/styles/dark',
+  },
+  {
+    id: 'fiord',
+    label: 'Fiord',
+    labelEn: 'Fiord',
+    url: 'https://tiles.openfreemap.org/styles/fiord',
   },
 ]
 

@@ -3,7 +3,11 @@ import type { StyleSpecification } from 'maplibre-gl'
 import { HelpModal } from './components/HelpModal'
 import { MapView } from './components/MapView'
 import { Sidebar } from './components/Sidebar'
-import { applyColorRemap, extractPaletteFromStyle } from './lib/colors'
+import {
+  applyColorRemap,
+  extractColorSitesFromStyle,
+  extractPaletteFromStyle,
+} from './lib/colors'
 import {
   canRedo,
   canUndo,
@@ -16,6 +20,17 @@ import {
 import { styleDownloadFilename } from './lib/filename'
 import { parseHash, sanitizeStyleName, writeHash } from './lib/hashState'
 import { fetchOfficialStyle, type StyleId } from './lib/styles'
+
+function emptySnap(
+  partial?: Partial<ColorEditSnapshot>,
+): ColorEditSnapshot {
+  return {
+    remap: { ...(partial?.remap ?? {}) },
+    siteRemap: { ...(partial?.siteRemap ?? {}) },
+    previous: { ...(partial?.previous ?? {}) },
+    previousSites: { ...(partial?.previousSites ?? {}) },
+  }
+}
 
 function readInitialStyleId(): StyleId {
   const parsed = parseHash(window.location.hash)
@@ -32,31 +47,47 @@ function readInitialRemap(): Record<string, string> {
   return parsed?.remap ?? {}
 }
 
+function readInitialSiteRemap(): Record<string, string> {
+  const parsed = parseHash(window.location.hash)
+  return parsed?.siteRemap ?? {}
+}
+
 function initEditorState(
   styleId: StyleId,
   urlRemap: Record<string, string>,
+  urlSiteRemap: Record<string, string>,
 ): ColorEditSnapshot & { stack: ColorEditSnapshot[]; index: number } {
   const loaded = loadHistoryForStyle(styleId)
   const tip = loaded.stack[loaded.index]
   if (
     tip &&
-    JSON.stringify(tip.remap) === JSON.stringify(urlRemap)
+    JSON.stringify(tip.remap) === JSON.stringify(urlRemap) &&
+    JSON.stringify(tip.siteRemap ?? {}) === JSON.stringify(urlSiteRemap)
   ) {
-    // 同一工作階段、網址狀態吻合 → 還原本機 previous／undo
     return {
-      remap: { ...tip.remap },
-      previous: { ...tip.previous },
+      ...emptySnap(tip),
       stack: loaded.stack,
       index: loaded.index,
     }
   }
-  // 分享連結或新狀態：只有網址上的目前色，沒有「修改前」
-  const snap: ColorEditSnapshot = { remap: { ...urlRemap }, previous: {} }
+  const snap = emptySnap({ remap: urlRemap, siteRemap: urlSiteRemap })
   return { ...snap, stack: [snap], index: 0 }
 }
 
 function handleStyleNameInput(name: string): string {
   return name.slice(0, 80)
+}
+
+function currentForSite(
+  siteId: string,
+  original: string,
+  remap: Record<string, string>,
+  siteRemap: Record<string, string>,
+): string {
+  if (Object.prototype.hasOwnProperty.call(siteRemap, siteId)) {
+    return siteRemap[siteId]
+  }
+  return remap[original] ?? original
 }
 
 export default function App() {
@@ -67,17 +98,20 @@ export default function App() {
   )
   const [baseStyle, setBaseStyle] = useState<StyleSpecification | null>(null)
   const [editor, setEditor] = useState(() =>
-    initEditorState(initialStyleId, readInitialRemap()),
+    initEditorState(
+      initialStyleId,
+      readInitialRemap(),
+      readInitialSiteRemap(),
+    ),
   )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
 
-  /** 同一色票拖曳取色只算一次歷史手勢 */
   const gestureKeyRef = useRef<string | null>(null)
 
-  const { remap, previous, stack, index } = editor
+  const { remap, siteRemap, previous, previousSites, stack, index } = editor
 
   useEffect(() => {
     persistHistory(styleId, stack, index)
@@ -110,16 +144,21 @@ export default function App() {
     [baseStyle],
   )
 
+  const colorSites = useMemo(
+    () => (baseStyle ? extractColorSitesFromStyle(baseStyle) : []),
+    [baseStyle],
+  )
+
   const remappedStyle = useMemo(() => {
     if (!baseStyle) return null
-    const next = applyColorRemap(baseStyle, remap)
+    const next = applyColorRemap(baseStyle, remap, siteRemap)
     const name = styleName.trim() || styleId
     return { ...next, name } as StyleSpecification & { name: string }
-  }, [baseStyle, remap, styleName, styleId])
+  }, [baseStyle, remap, siteRemap, styleName, styleId])
 
   useEffect(() => {
-    writeHash({ styleId, styleName, remap })
-  }, [styleId, styleName, remap])
+    writeHash({ styleId, styleName, remap, siteRemap })
+  }, [styleId, styleName, remap, siteRemap])
 
   const handleStyleChange = useCallback(
     (id: StyleId) => {
@@ -129,33 +168,36 @@ export default function App() {
         return prevName
       })
       setStyleId(id)
-      const snap: ColorEditSnapshot = { remap: {}, previous: {} }
+      const snap = emptySnap()
       setEditor({ ...snap, stack: [snap], index: 0 })
       setStatusMessage(null)
     },
     [styleId],
   )
 
-  const handleColorChange = useCallback((original: string, next: string) => {
-    setEditor((prev) => {
-      const before = prev.remap[original] ?? original
-      let { stack, index, previous } = prev
+  const handleColorChange = useCallback((originals: string[], next: string) => {
+    if (originals.length === 0) return
+    const gestureKey = `c:${originals.slice().sort().join('\0')}`
 
-      if (gestureKeyRef.current !== original) {
-        gestureKeyRef.current = original
-        // 先把「改之前」的狀態推進歷史，再開始這次手勢
-        const frozen = pushSnapshot(stack, index, {
-          remap: prev.remap,
-          previous: prev.previous,
-        })
+    setEditor((prev) => {
+      let { stack, index, previous, siteRemap, previousSites } = prev
+
+      if (gestureKeyRef.current !== gestureKey) {
+        gestureKeyRef.current = gestureKey
+        const frozen = pushSnapshot(stack, index, emptySnap(prev))
         stack = frozen.stack
         index = frozen.index
-        previous = { ...prev.previous, [original]: before }
-
-        const started: ColorEditSnapshot = {
-          remap: { ...prev.remap },
-          previous,
+        previous = { ...prev.previous }
+        for (const original of originals) {
+          previous[original] = prev.remap[original] ?? original
         }
+
+        const started = emptySnap({
+          remap: prev.remap,
+          siteRemap: prev.siteRemap,
+          previous,
+          previousSites: prev.previousSites,
+        })
         const nextStack = stack.slice(0, index + 1)
         nextStack.push(started)
         stack = nextStack
@@ -163,20 +205,82 @@ export default function App() {
       }
 
       const newRemap = { ...prev.remap }
-      if (next === original) {
-        delete newRemap[original]
-        const { [original]: _, ...restPrev } = previous
-        previous = restPrev
-      } else {
-        newRemap[original] = next
+      previous = { ...previous }
+      for (const original of originals) {
+        if (next === original) {
+          delete newRemap[original]
+          delete previous[original]
+        } else {
+          newRemap[original] = next
+        }
       }
 
-      const live: ColorEditSnapshot = { remap: newRemap, previous }
+      const live = emptySnap({
+        remap: newRemap,
+        siteRemap,
+        previous,
+        previousSites,
+      })
       const updatedStack = stack.map((s, i) => (i === index ? live : s))
       return { ...live, stack: updatedStack, index }
     })
     setStatusMessage(null)
   }, [])
+
+  const handleSiteColorChange = useCallback(
+    (siteId: string, original: string, next: string) => {
+      const gestureKey = `s:${siteId}`
+
+      setEditor((prev) => {
+        let { stack, index, previousSites, remap, previous } = prev
+
+        if (gestureKeyRef.current !== gestureKey) {
+          gestureKeyRef.current = gestureKey
+          const frozen = pushSnapshot(stack, index, emptySnap(prev))
+          stack = frozen.stack
+          index = frozen.index
+          previousSites = { ...prev.previousSites }
+          previousSites[siteId] = currentForSite(
+            siteId,
+            original,
+            prev.remap,
+            prev.siteRemap,
+          )
+
+          const started = emptySnap({
+            remap: prev.remap,
+            siteRemap: prev.siteRemap,
+            previous: prev.previous,
+            previousSites,
+          })
+          const nextStack = stack.slice(0, index + 1)
+          nextStack.push(started)
+          stack = nextStack
+          index = stack.length - 1
+        }
+
+        const newSiteRemap = { ...prev.siteRemap }
+        previousSites = { ...previousSites }
+        if (next === original) {
+          delete newSiteRemap[siteId]
+          delete previousSites[siteId]
+        } else {
+          newSiteRemap[siteId] = next
+        }
+
+        const live = emptySnap({
+          remap,
+          siteRemap: newSiteRemap,
+          previous,
+          previousSites,
+        })
+        const updatedStack = stack.map((s, i) => (i === index ? live : s))
+        return { ...live, stack: updatedStack, index }
+      })
+      setStatusMessage(null)
+    },
+    [],
+  )
 
   const handleColorGestureEnd = useCallback(() => {
     gestureKeyRef.current = null
@@ -185,11 +289,8 @@ export default function App() {
   const handleReset = useCallback(() => {
     gestureKeyRef.current = null
     setEditor((prev) => {
-      const frozen = pushSnapshot(prev.stack, prev.index, {
-        remap: prev.remap,
-        previous: prev.previous,
-      })
-      const snap: ColorEditSnapshot = { remap: {}, previous: {} }
+      const frozen = pushSnapshot(prev.stack, prev.index, emptySnap(prev))
+      const snap = emptySnap()
       const nextStack = frozen.stack.slice(0, frozen.index + 1)
       nextStack.push(snap)
       return { ...snap, stack: nextStack, index: nextStack.length - 1 }
@@ -197,15 +298,14 @@ export default function App() {
     setStatusMessage('已還原官方樣式')
   }, [])
 
-  /** 清空本機改色歷史／修改前顏色；保留目前配色 */
   const handleClearHistory = useCallback(() => {
     gestureKeyRef.current = null
     clearHistoryStorage()
     setEditor((prev) => {
-      const snap: ColorEditSnapshot = {
-        remap: { ...prev.remap },
-        previous: {},
-      }
+      const snap = emptySnap({
+        remap: prev.remap,
+        siteRemap: prev.siteRemap,
+      })
       return { ...snap, stack: [snap], index: 0 }
     })
     setStatusMessage('已清空本機歷史紀錄')
@@ -216,13 +316,8 @@ export default function App() {
     setEditor((prev) => {
       if (!canUndo(prev.index)) return prev
       const index = prev.index - 1
-      const tip = prev.stack[index]
-      return {
-        remap: { ...tip.remap },
-        previous: { ...tip.previous },
-        stack: prev.stack,
-        index,
-      }
+      const tip = emptySnap(prev.stack[index])
+      return { ...tip, stack: prev.stack, index }
     })
     setStatusMessage(null)
   }, [])
@@ -232,13 +327,8 @@ export default function App() {
     setEditor((prev) => {
       if (!canRedo(prev.index, prev.stack.length)) return prev
       const index = prev.index + 1
-      const tip = prev.stack[index]
-      return {
-        remap: { ...tip.remap },
-        previous: { ...tip.previous },
-        stack: prev.stack,
-        index,
-      }
+      const tip = emptySnap(prev.stack[index])
+      return { ...tip, stack: prev.stack, index }
     })
     setStatusMessage(null)
   }, [])
@@ -283,6 +373,7 @@ export default function App() {
     undoEnabled ||
     redoEnabled ||
     Object.keys(previous).length > 0 ||
+    Object.keys(previousSites).length > 0 ||
     stack.length > 1
 
   return (
@@ -292,8 +383,11 @@ export default function App() {
         styleId={styleId}
         styleName={styleName}
         palette={palette}
+        colorSites={colorSites}
         remap={remap}
+        siteRemap={siteRemap}
         previous={previous}
+        previousSites={previousSites}
         loading={loading}
         error={error}
         statusMessage={statusMessage}
@@ -303,6 +397,7 @@ export default function App() {
         onStyleChange={handleStyleChange}
         onStyleNameChange={(name) => setStyleName(handleStyleNameInput(name))}
         onColorChange={handleColorChange}
+        onSiteColorChange={handleSiteColorChange}
         onColorGestureEnd={handleColorGestureEnd}
         onReset={handleReset}
         onClearHistory={handleClearHistory}

@@ -14,29 +14,45 @@ export interface AppHashState {
    * 不含「修改前」顏色；那份只存在瀏覽器端。
    */
   remap: Record<string, string>
+  /** 逐項：位置 id → 目前色 */
+  siteRemap: Record<string, string>
 }
 
-const VALID_STYLES = new Set<StyleId>(['positron', 'bright', 'dark'])
+const VALID_STYLES = new Set<StyleId>([
+  'positron',
+  'bright',
+  'liberty',
+  'dark',
+  'fiord',
+])
 
 const STYLE_TO_SHORT: Record<StyleId, string> = {
   positron: 'p',
   bright: 'b',
+  liberty: 'l',
   dark: 'd',
+  fiord: 'f',
 }
 
 const SHORT_TO_STYLE: Record<string, StyleId> = {
   p: 'positron',
   b: 'bright',
+  l: 'liberty',
   d: 'dark',
+  f: 'fiord',
   positron: 'positron',
   bright: 'bright',
+  liberty: 'liberty',
   dark: 'dark',
+  fiord: 'fiord',
 }
 
 /** 防止惡意／過大 hash 拖垮解析 */
 const MAX_HASH_CHARS = 50_000
 const MAX_REMAP_ENTRIES = 256
+const MAX_SITE_REMAP_ENTRIES = 512
 const MAX_STYLE_NAME_LENGTH = 80
+const SITE_ID_RE = /^[^|]+\|[^|]+\|\d+$/
 
 /** 壓縮格式前綴（其後為 lz-string URI 安全字串） */
 const COMPRESSED_PREFIX = 'z'
@@ -105,12 +121,33 @@ function parseRemapJson(raw: string): Record<string, string> {
   }
 }
 
+/** 逐項位置 remap：合法 site id → 色字串 */
+export function sanitizeSiteRemap(value: unknown): Record<string, string> {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  const out: Record<string, string> = {}
+  for (const [idRaw, toRaw] of Object.entries(value as Record<string, unknown>)) {
+    if (Object.keys(out).length >= MAX_SITE_REMAP_ENTRIES) break
+    if (typeof idRaw !== 'string' || typeof toRaw !== 'string') continue
+    const id = idRaw.trim()
+    const to = toRaw.trim()
+    if (!id || !to) continue
+    if (!SITE_ID_RE.test(id)) continue
+    if (!isColorString(to)) continue
+    out[id] = to
+  }
+  return out
+}
+
 /** 網址 payload：樣式出處 + 名稱 + 色彩 JSON 物件 */
 interface CompactPayload {
   s: string
   n?: string
   /** 色彩對應 JSON：官方色 → 目前色 */
   j?: Record<string, string>
+  /** 逐項位置對應 */
+  p?: Record<string, string>
   /** @deprecated 舊版陣列／物件欄位，僅解析用 */
   r?: unknown
 }
@@ -124,6 +161,7 @@ function parsePayload(data: unknown): Partial<AppHashState> | null {
     styleId: resolveStyleId(obj.s),
     styleName: sanitizeStyleName(obj.n),
     remap: sanitizeRemap(obj.j ?? obj.r),
+    siteRemap: sanitizeSiteRemap(obj.p),
   }
 }
 
@@ -135,6 +173,12 @@ function buildCompactPayload(state: AppHashState): CompactPayload {
     compact[from] = compactColorValue(to)
   }
 
+  const siteRemap = sanitizeSiteRemap(state.siteRemap)
+  const compactSites: Record<string, string> = {}
+  for (const [id, to] of Object.entries(siteRemap)) {
+    compactSites[id] = compactColorValue(to)
+  }
+
   const payload: CompactPayload = {
     s: STYLE_TO_SHORT[state.styleId] ?? state.styleId,
   }
@@ -144,6 +188,9 @@ function buildCompactPayload(state: AppHashState): CompactPayload {
   }
   if (Object.keys(compact).length > 0) {
     payload.j = compact
+  }
+  if (Object.keys(compactSites).length > 0) {
+    payload.p = compactSites
   }
   return payload
 }
@@ -175,6 +222,7 @@ export function parseHash(hash: string): Partial<AppHashState> | null {
     const styleId = resolveStyleId(params.get('style'))
     const styleName = sanitizeStyleName(params.get('name'))
     let remap: Record<string, string> = {}
+    let siteRemap: Record<string, string> = {}
     const r = params.get('r') ?? params.get('j')
     if (r) {
       try {
@@ -187,7 +235,15 @@ export function parseHash(hash: string): Partial<AppHashState> | null {
         }
       }
     }
-    return { styleId, styleName, remap }
+    const p = params.get('p')
+    if (p) {
+      try {
+        siteRemap = sanitizeSiteRemap(JSON.parse(decodeURIComponent(p)))
+      } catch {
+        siteRemap = {}
+      }
+    }
+    return { styleId, styleName, remap, siteRemap }
   } catch {
     return null
   }

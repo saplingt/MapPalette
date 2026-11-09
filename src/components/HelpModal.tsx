@@ -130,7 +130,7 @@ const map = new maplibregl.Map({
               <li>
                 <strong>官方</strong>：
                 <code>https://tiles.openfreemap.org/styles/positron</code>{' '}
-                （或 bright／dark）
+                （或 bright／liberty／dark／fiord）
               </li>
               <li>
                 <strong>你的檔案</strong>：同樣結構，但 <code>layers</code> 裡的色彩已是你調過的版本

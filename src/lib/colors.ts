@@ -114,10 +114,119 @@ export interface ColorOccurrence {
   layers: string[]
 }
 
+/** 逐項用：單一用色位置（layer × 屬性 × 出現序）。 */
+export interface ColorSite {
+  id: string
+  color: string
+  layerId: string
+  property: string
+}
+
+export function makeColorSiteId(
+  layerId: string,
+  property: string,
+  index: number,
+): string {
+  return `${encodeURIComponent(layerId)}|${property}|${index}`
+}
+
+/** 與 extract／apply 共用的 DFS 色碼走訪順序。 */
+function forEachColorLiteral(
+  value: unknown,
+  visit: (color: string, index: number) => void,
+  state: { i: number } = { i: 0 },
+): void {
+  if (value == null) return
+  if (typeof value === 'string') {
+    if (isColorString(value)) visit(value.trim(), state.i++)
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) forEachColorLiteral(item, visit, state)
+    return
+  }
+  if (typeof value === 'object') {
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      forEachColorLiteral(v, visit, state)
+    }
+  }
+}
+
+function mapColorLiterals(
+  value: unknown,
+  mapOne: (color: string, index: number) => string,
+  state: { i: number } = { i: 0 },
+): unknown {
+  if (value == null) return value
+  if (typeof value === 'string') {
+    if (isColorString(value)) {
+      const trimmed = value.trim()
+      const index = state.i++
+      return mapOne(trimmed, index)
+    }
+    return value
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => mapColorLiterals(item, mapOne, state))
+  }
+  if (typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = mapColorLiterals(v, mapOne, state)
+    }
+    return out
+  }
+  return value
+}
+
+function collectStyleColorTargets(
+  style: StyleSpecification,
+): Array<{ layerId: string; property: string; value: unknown }> {
+  const targets: Array<{ layerId: string; property: string; value: unknown }> =
+    []
+
+  for (const layer of style.layers ?? []) {
+    const layerId = layer.id
+    for (const section of ['paint', 'layout'] as const) {
+      const bag = (layer as Record<string, unknown>)[section] as
+        | Record<string, unknown>
+        | undefined
+      if (!bag) continue
+      for (const [key, val] of Object.entries(bag)) {
+        if (!isColorPropertyKey(key)) continue
+        targets.push({
+          layerId,
+          property: `${section}.${key}`,
+          value: val,
+        })
+      }
+    }
+  }
+
+  const extras: Array<[string, unknown]> = []
+  if ('fog' in style && style.fog) extras.push(['fog', style.fog])
+  if ('light' in style && (style as { light?: unknown }).light) {
+    extras.push(['light', (style as { light?: unknown }).light])
+  }
+  for (const [label, obj] of extras) {
+    if (obj && typeof obj === 'object') {
+      for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+        if (!isColorPropertyKey(k) && !String(k).includes('color')) continue
+        targets.push({ layerId: label, property: `${label}.${k}`, value: v })
+      }
+    }
+  }
+
+  return targets
+}
+
 export function extractPaletteFromStyle(
   style: StyleSpecification,
 ): ColorOccurrence[] {
-  const counts = new Map<string, { count: number; properties: Set<string>; layers: Set<string> }>()
+  const counts = new Map<
+    string,
+    { count: number; properties: Set<string>; layers: Set<string> }
+  >()
 
   const bump = (color: string, prop: string, layerId: string) => {
     let entry = counts.get(color)
@@ -130,39 +239,10 @@ export function extractPaletteFromStyle(
     entry.layers.add(layerId)
   }
 
-  for (const layer of style.layers ?? []) {
-    const layerId = layer.id
-    for (const section of ['paint', 'layout'] as const) {
-      const bag = (layer as Record<string, unknown>)[section] as
-        | Record<string, unknown>
-        | undefined
-      if (!bag) continue
-      for (const [key, val] of Object.entries(bag)) {
-        if (!isColorPropertyKey(key)) continue
-        const found = new Set<string>()
-        extractColorsFromValue(val, found)
-        for (const c of found) {
-          bump(c, `${section}.${key}`, layerId)
-        }
-      }
-    }
-  }
-
-  // 一併掃描根層 light／fog（若存在，預留擴充）
-  const extras: Array<[string, unknown]> = []
-  if ('fog' in style && style.fog) extras.push(['fog', style.fog])
-  if ('light' in style && (style as { light?: unknown }).light) {
-    extras.push(['light', (style as { light?: unknown }).light])
-  }
-  for (const [label, obj] of extras) {
-    if (obj && typeof obj === 'object') {
-      for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-        if (!isColorPropertyKey(k) && !String(k).includes('color')) continue
-        const found = new Set<string>()
-        extractColorsFromValue(v, found)
-        for (const c of found) bump(c, label + '.' + k, label)
-      }
-    }
+  for (const target of collectStyleColorTargets(style)) {
+    forEachColorLiteral(target.value, (color) => {
+      bump(color, target.property, target.layerId)
+    })
   }
 
   return [...counts.entries()]
@@ -175,6 +255,24 @@ export function extractPaletteFromStyle(
     .sort((a, b) => a.color.localeCompare(b.color))
 }
 
+/** 拆成每一處用色，供逐項個別改色。 */
+export function extractColorSitesFromStyle(
+  style: StyleSpecification,
+): ColorSite[] {
+  const sites: ColorSite[] = []
+  for (const target of collectStyleColorTargets(style)) {
+    forEachColorLiteral(target.value, (color, index) => {
+      sites.push({
+        id: makeColorSiteId(target.layerId, target.property, index),
+        color,
+        layerId: target.layerId,
+        property: target.property,
+      })
+    })
+  }
+  return sites
+}
+
 /**
  * 依 remap（鍵＝官方原始色字串）深度走訪並替換完全相符的色彩字串 literal。
  */
@@ -182,58 +280,89 @@ export function remapColorsInValue(
   value: unknown,
   remap: Record<string, string>,
 ): unknown {
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (Object.prototype.hasOwnProperty.call(remap, trimmed)) {
-      return remap[trimmed]
-    }
-    if (Object.prototype.hasOwnProperty.call(remap, value)) {
-      return remap[value]
-    }
-    return value
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => remapColorsInValue(item, remap))
-  }
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = remapColorsInValue(v, remap)
-    }
-    return out
-  }
-  return value
+  return mapColorLiterals(value, (color) => {
+    if (Object.prototype.hasOwnProperty.call(remap, color)) return remap[color]
+    return color
+  })
 }
 
-/** 將「原始色 → 目前色」套用到所有含色彩的 layer 屬性。 */
+/**
+ * 套用全域色 remap，以及逐項用的位置 remap（位置優先）。
+ */
 export function applyColorRemap(
   style: StyleSpecification,
   remap: Record<string, string>,
+  siteRemap: Record<string, string> = {},
 ): StyleSpecification {
-  const active = Object.fromEntries(
-    Object.entries(remap).filter(([from, to]) => from !== to && to != null && to !== ''),
+  const activeColor = Object.fromEntries(
+    Object.entries(remap).filter(
+      ([from, to]) => from !== to && to != null && to !== '',
+    ),
   )
-  if (Object.keys(active).length === 0) {
+  const activeSite = Object.fromEntries(
+    Object.entries(siteRemap).filter(
+      ([, to]) => to != null && to !== '',
+    ),
+  )
+  if (
+    Object.keys(activeColor).length === 0 &&
+    Object.keys(activeSite).length === 0
+  ) {
     return structuredClone(style)
   }
 
   const next = structuredClone(style)
+
   next.layers = (next.layers ?? []).map((layer) => {
     const copy = { ...layer } as Record<string, unknown>
     for (const section of ['paint', 'layout'] as const) {
       const bag = copy[section] as Record<string, unknown> | undefined
       if (!bag) continue
-      const remapped: Record<string, unknown> = { ...bag }
+      const rewritten: Record<string, unknown> = { ...bag }
       let changed = false
       for (const [key, val] of Object.entries(bag)) {
         if (!isColorPropertyKey(key)) continue
-        remapped[key] = remapColorsInValue(val, active)
+        const propPath = `${section}.${key}`
+        rewritten[key] = mapColorLiterals(val, (color, index) => {
+          const siteId = makeColorSiteId(layer.id, propPath, index)
+          if (Object.prototype.hasOwnProperty.call(activeSite, siteId)) {
+            return activeSite[siteId]
+          }
+          if (Object.prototype.hasOwnProperty.call(activeColor, color)) {
+            return activeColor[color]
+          }
+          return color
+        })
         changed = true
       }
-      if (changed) copy[section] = remapped
+      if (changed) copy[section] = rewritten
     }
     return copy as (typeof next.layers extends (infer L)[] | undefined ? L : never)
   })
+
+  // fog / light
+  for (const label of ['fog', 'light'] as const) {
+    const obj = (next as Record<string, unknown>)[label]
+    if (!obj || typeof obj !== 'object') continue
+    const bag = { ...(obj as Record<string, unknown>) }
+    let changed = false
+    for (const [key, val] of Object.entries(bag)) {
+      if (!isColorPropertyKey(key) && !String(key).includes('color')) continue
+      const propPath = `${label}.${key}`
+      bag[key] = mapColorLiterals(val, (color, index) => {
+        const siteId = makeColorSiteId(label, propPath, index)
+        if (Object.prototype.hasOwnProperty.call(activeSite, siteId)) {
+          return activeSite[siteId]
+        }
+        if (Object.prototype.hasOwnProperty.call(activeColor, color)) {
+          return activeColor[color]
+        }
+        return color
+      })
+      changed = true
+    }
+    if (changed) (next as Record<string, unknown>)[label] = bag
+  }
 
   return next
 }
@@ -423,6 +552,11 @@ export function formatHexForInput(color: string): string {
   const rgb = `#${hexByte(r)}${hexByte(g)}${hexByte(b)}`
   if (a >= 0.999) return rgb
   return `${rgb}${hexByte(a * 255)}`
+}
+
+/** 視覺相同顏色的歸一鍵（小寫 #rrggbb / #rrggbbaa），供同色分組。 */
+export function normalizeColorKey(color: string): string {
+  return formatHexForInput(color).toLowerCase()
 }
 
 /** 將 CSS 色字串轉成 `<input type="color">` 可用的 `#rrggbb`。 */

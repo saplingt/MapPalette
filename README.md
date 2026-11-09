@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 切換官方樣式：Positron／Bright／Dark
+- 切換官方樣式：Positron／Bright／Liberty／Dark／Fiord（順序同官網）
 - 掃描 layers 的 paint／layout 色彩屬性（含 expression 內的字面色碼）
 - 每個唯一色彩附取色器；全域替換後以 MapLibre 即時重繪
 - 以 URL hash 保存樣式出處、名稱與目前色彩 JSON，分享連結即可還原目前配色
@@ -37,7 +37,9 @@ npm run preview
 |------|------|
 | Positron | `https://tiles.openfreemap.org/styles/positron` |
 | Bright | `https://tiles.openfreemap.org/styles/bright` |
+| Liberty | `https://tiles.openfreemap.org/styles/liberty` |
 | Dark | `https://tiles.openfreemap.org/styles/dark` |
+| Fiord | `https://tiles.openfreemap.org/styles/fiord` |
 
 ## 技術棧
 

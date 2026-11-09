@@ -43,11 +43,8 @@ export function MapView({ style }: MapViewProps) {
       },
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
-      attributionControl: {
-        compact: true,
-        customAttribution:
-          'OpenFreeMap © OpenMapTiles Data from OpenStreetMap',
-      },
+      // 圖磚 TileJSON 已含 OpenFreeMap／OpenMapTiles／OSM 標註，勿再 customAttribution 以免重複
+      attributionControl: { compact: true },
     })
 
     map.addControl(new NavigationControl({ visualizePitch: true }), 'top-right')

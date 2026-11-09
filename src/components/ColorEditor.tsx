@@ -1,4 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { RgbaStringColorPicker } from 'react-colorful'
 import {
@@ -13,6 +21,8 @@ import {
 
 interface ColorEditorProps {
   original: string
+  /** 同色合併時補充說明，例如「等 3 個色碼」 */
+  originalHint?: string
   current: string
   getAnchor: () => DOMRect | null
   onChange: (next: string) => void
@@ -20,9 +30,37 @@ interface ColorEditorProps {
 }
 
 const PANEL_WIDTH = 248
-const PANEL_EST_HEIGHT = 360
+const PANEL_EST_HEIGHT = 420
 const GAP = 8
 const VIEW_PAD = 10
+
+type RgbaDraft = { r: string; g: string; b: string; a: string }
+
+function draftsFromColor(color: string): RgbaDraft {
+  const { r, g, b } = parseCssColor(color)
+  return {
+    r: String(r),
+    g: String(g),
+    b: String(b),
+    a: String(getOpacityPercent(color)),
+  }
+}
+
+function parseByteChannel(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!/^\d{1,3}$/.test(trimmed)) return null
+  const n = Number(trimmed)
+  if (!Number.isInteger(n) || n < 0 || n > 255) return null
+  return n
+}
+
+function parseOpacityPercent(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!/^\d{1,3}$/.test(trimmed)) return null
+  const n = Number(trimmed)
+  if (!Number.isInteger(n) || n < 0 || n > 100) return null
+  return n
+}
 
 function placePanel(anchor: DOMRect) {
   const vw = window.innerWidth
@@ -56,6 +94,7 @@ function placePanel(anchor: DOMRect) {
 
 export function ColorEditor({
   original,
+  originalHint,
   current,
   getAnchor,
   onChange,
@@ -64,8 +103,14 @@ export function ColorEditor({
   const titleId = useId()
   const inputId = useId()
   const errorId = useId()
+  const rgbaErrorId = useId()
+  const rId = useId()
+  const gId = useId()
+  const bId = useId()
+  const aId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
-  const inputFocusedRef = useRef(false)
+  const hexFocusedRef = useRef(false)
+  const rgbaFocusedRef = useRef(false)
   const getAnchorRef = useRef(getAnchor)
   getAnchorRef.current = getAnchor
 
@@ -82,14 +127,22 @@ export function ColorEditor({
   })
   const [draft, setDraft] = useState(() => formatHexForInput(current))
   const [inputError, setInputError] = useState(false)
+  const [rgbaDraft, setRgbaDraft] = useState<RgbaDraft>(() =>
+    draftsFromColor(current),
+  )
+  const [rgbaError, setRgbaError] = useState(false)
 
   const pickerColor = toRgbaString(current)
-  const opacity = getOpacityPercent(current)
 
   useEffect(() => {
-    if (inputFocusedRef.current) return
-    setDraft(formatHexForInput(current))
-    setInputError(false)
+    if (!hexFocusedRef.current) {
+      setDraft(formatHexForInput(current))
+      setInputError(false)
+    }
+    if (!rgbaFocusedRef.current) {
+      setRgbaDraft(draftsFromColor(current))
+      setRgbaError(false)
+    }
   }, [current])
 
   const commitDraft = () => {
@@ -103,6 +156,22 @@ export function ColorEditor({
     }
     setDraft(formatHexForInput(current))
     setInputError(true)
+  }
+
+  const commitRgbaDraft = () => {
+    const r = parseByteChannel(rgbaDraft.r)
+    const g = parseByteChannel(rgbaDraft.g)
+    const b = parseByteChannel(rgbaDraft.b)
+    const aPct = parseOpacityPercent(rgbaDraft.a)
+    if (r == null || g == null || b == null || aPct == null) {
+      setRgbaDraft(draftsFromColor(current))
+      setRgbaError(true)
+      return
+    }
+    const next = formatCssColor({ r, g, b, a: aPct / 100 })
+    onChange(next)
+    setRgbaDraft(draftsFromColor(next))
+    setRgbaError(false)
   }
 
   const syncPos = () => {
@@ -153,6 +222,21 @@ export function ColorEditor({
     }
   }, [onClose])
 
+  const bindChannel = (key: keyof RgbaDraft) => ({
+    value: rgbaDraft[key],
+    onChange: (e: ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value
+      setRgbaDraft((prev) => ({ ...prev, [key]: value }))
+      if (rgbaError) setRgbaError(false)
+    },
+    onKeyDown: (e: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        ;(e.target as HTMLInputElement).blur()
+      }
+    },
+  })
+
   return createPortal(
     <div
       ref={panelRef}
@@ -201,7 +285,7 @@ export function ColorEditor({
           aria-invalid={inputError}
           aria-describedby={inputError ? errorId : undefined}
           onFocus={() => {
-            inputFocusedRef.current = true
+            hexFocusedRef.current = true
             setInputError(false)
           }}
           onChange={(e) => {
@@ -209,7 +293,7 @@ export function ColorEditor({
             if (inputError) setInputError(false)
           }}
           onBlur={() => {
-            inputFocusedRef.current = false
+            hexFocusedRef.current = false
             commitDraft()
           }}
           onKeyDown={(e) => {
@@ -227,13 +311,87 @@ export function ColorEditor({
         )}
       </label>
 
-      <div className="color-editor-meta">
-        <code className="color-editor-rgb">{formatCssRgb(current)}</code>
-        <span className="color-editor-alpha">{opacity}%</span>
+      <div
+        className="color-editor-channels"
+        role="group"
+        aria-label="RGB 與透明度"
+        onFocusCapture={() => {
+          rgbaFocusedRef.current = true
+          setRgbaError(false)
+        }}
+        onBlurCapture={(e) => {
+          const next = e.relatedTarget as Node | null
+          if (next && e.currentTarget.contains(next)) return
+          rgbaFocusedRef.current = false
+          commitRgbaDraft()
+        }}
+      >
+        <label className="color-editor-channel" htmlFor={rId}>
+          <span className="color-editor-channel-label">R</span>
+          <input
+            id={rId}
+            type="text"
+            inputMode="numeric"
+            className={`color-editor-channel-input ${rgbaError ? 'is-invalid' : ''}`}
+            spellCheck={false}
+            autoComplete="off"
+            aria-invalid={rgbaError}
+            {...bindChannel('r')}
+          />
+        </label>
+        <label className="color-editor-channel" htmlFor={gId}>
+          <span className="color-editor-channel-label">G</span>
+          <input
+            id={gId}
+            type="text"
+            inputMode="numeric"
+            className={`color-editor-channel-input ${rgbaError ? 'is-invalid' : ''}`}
+            spellCheck={false}
+            autoComplete="off"
+            aria-invalid={rgbaError}
+            {...bindChannel('g')}
+          />
+        </label>
+        <label className="color-editor-channel" htmlFor={bId}>
+          <span className="color-editor-channel-label">B</span>
+          <input
+            id={bId}
+            type="text"
+            inputMode="numeric"
+            className={`color-editor-channel-input ${rgbaError ? 'is-invalid' : ''}`}
+            spellCheck={false}
+            autoComplete="off"
+            aria-invalid={rgbaError}
+            {...bindChannel('b')}
+          />
+        </label>
+        <label className="color-editor-channel" htmlFor={aId}>
+          <span className="color-editor-channel-label">A%</span>
+          <input
+            id={aId}
+            type="text"
+            inputMode="numeric"
+            className={`color-editor-channel-input ${rgbaError ? 'is-invalid' : ''}`}
+            spellCheck={false}
+            autoComplete="off"
+            aria-invalid={rgbaError}
+            aria-describedby={rgbaError ? rgbaErrorId : undefined}
+            {...bindChannel('a')}
+          />
+        </label>
       </div>
+      {rgbaError && (
+        <span id={rgbaErrorId} className="color-editor-error" role="alert">
+          RGB／透明度格式錯誤，已還原為目前顏色
+        </span>
+      )}
 
-      <p className="color-editor-origin" title={original}>
+      <p
+        className="color-editor-origin"
+        title={originalHint ? `${original}（${originalHint}）` : original}
+      >
         原始：{formatCssRgb(original)}
+        {originalHint ? ` · ${originalHint}` : ''}
       </p>
     </div>,
     document.body,

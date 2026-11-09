@@ -2,8 +2,12 @@
 
 export interface ColorEditSnapshot {
   remap: Record<string, string>
-  /** 官方色 → 修改前的顏色（供清單第二排） */
+  /** 逐項：位置 id → 目前色 */
+  siteRemap: Record<string, string>
+  /** 官方色 → 修改前的顏色（同類／同色第二排） */
   previous: Record<string, string>
+  /** 位置 id → 修改前的顏色（逐項第二排） */
+  previousSites: Record<string, string>
 }
 
 const STORAGE_KEY = 'mappalette.editHistory.v1'
@@ -18,12 +22,23 @@ interface StoredHistory {
 function cloneSnapshot(s: ColorEditSnapshot): ColorEditSnapshot {
   return {
     remap: { ...s.remap },
+    siteRemap: { ...s.siteRemap },
     previous: { ...s.previous },
+    previousSites: { ...s.previousSites },
+  }
+}
+
+function normalizeSnapshot(raw: Partial<ColorEditSnapshot> | null | undefined): ColorEditSnapshot {
+  return {
+    remap: { ...(raw?.remap ?? {}) },
+    siteRemap: { ...(raw?.siteRemap ?? {}) },
+    previous: { ...(raw?.previous ?? {}) },
+    previousSites: { ...(raw?.previousSites ?? {}) },
   }
 }
 
 function emptySnapshot(): ColorEditSnapshot {
-  return { remap: {}, previous: {} }
+  return { remap: {}, siteRemap: {}, previous: {}, previousSites: {} }
 }
 
 function readStored(): StoredHistory | null {
@@ -56,7 +71,7 @@ export function loadHistoryForStyle(styleId: string): {
   if (!stored || stored.styleId !== styleId || stored.stack.length === 0) {
     return { stack: [emptySnapshot()], index: 0 }
   }
-  const stack = stored.stack.map(cloneSnapshot)
+  const stack = stored.stack.map((s) => normalizeSnapshot(s))
   const index = Math.max(0, Math.min(stored.index, stack.length - 1))
   return { stack, index }
 }
@@ -91,14 +106,11 @@ export function pushSnapshot(
 ): { stack: ColorEditSnapshot[]; index: number } {
   const trimmed = stack.slice(0, index + 1)
   const last = trimmed[trimmed.length - 1]
-  if (
-    last &&
-    JSON.stringify(last.remap) === JSON.stringify(snapshot.remap) &&
-    JSON.stringify(last.previous) === JSON.stringify(snapshot.previous)
-  ) {
+  const next = normalizeSnapshot(snapshot)
+  if (last && JSON.stringify(normalizeSnapshot(last)) === JSON.stringify(next)) {
     return { stack: trimmed, index: trimmed.length - 1 }
   }
-  trimmed.push(cloneSnapshot(snapshot))
+  trimmed.push(cloneSnapshot(next))
   while (trimmed.length > MAX_STACK) trimmed.shift()
   return { stack: trimmed, index: trimmed.length - 1 }
 }
