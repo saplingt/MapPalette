@@ -71,7 +71,10 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
           <section className="help-section">
             <h3>建議流程</h3>
             <ol className="help-steps">
-              <li>在左側選底稿（Positron／Bright／Dark），調整各分類色票。</li>
+              <li>
+                在左側選底稿（Positron／Bright／Liberty／Dark／Fiord），用色彩清單的
+                「同類／同色／逐項」調整色票。
+              </li>
               <li>填好「樣式名稱」，決定下載檔名與 JSON 內的 <code>name</code>。</li>
               <li>按「下載 JSON」或「複製 JSON」。</li>
               <li>把檔案放到你的網站（例如 <code>/styles/my-map.json</code>）。</li>
@@ -171,11 +174,30 @@ const map = new maplibregl.Map({
           </section>
 
           <section className="help-section">
+            <h3>色彩清單：同類／同色／逐項</h3>
+            <ul>
+              <li>
+                <strong>同類</strong>
+                （依分類）：依圖層類型分組（背景、水域、道路…）。改某一色碼時，樣式裡所有相同寫法的該色會一起變。
+              </li>
+              <li>
+                <strong>同色</strong>
+                （依分色）：把看起來一樣、寫法不同的色碼合併（如 <code>#fff</code> 與{' '}
+                <code>#ffffff</code>）。改一組會一次改掉組內全部色碼。
+              </li>
+              <li>
+                <strong>逐項</strong>
+                ：每一處用色（圖層 × 屬性）各自一列，只改你點的那一筆，
+                <strong>不會</strong>連動其他同色或同色碼的地方。
+              </li>
+            </ul>
+          </section>
+
+          <section className="help-section">
             <h3>注意事項</h3>
             <ul>
               <li>
-                同一色碼會全域替換。例如多個圖層共用 <code>#fff</code>
-                ，改一次會一起變。
+                「同類／同色」是依色碼批次替換；若只要改單一圖層的某一處顏色，請用「逐項」。
               </li>
               <li>
                 若之後官方更新樣式，你的 JSON 不會自動同步；需要時可回 MapPalette
