@@ -76,7 +76,10 @@ export function HelpModal({ open, onClose }: HelpModalProps) {
                 「同類／同色／逐項」調整色票。
               </li>
               <li>填好「樣式名稱」，決定下載檔名與 JSON 內的 <code>name</code>。</li>
-              <li>按「下載 JSON」或「複製 JSON」。</li>
+              <li>
+                桌上型可用「複製／下載 JSON」。手機點「分享網址」會開系統分享（LINE、FB
+                等）；若不支援則改為複製網址。
+              </li>
               <li>把檔案放到你的網站（例如 <code>/styles/my-map.json</code>）。</li>
               <li>在地圖程式裡改為載入這份 style，即可替換原本顏色。</li>
             </ol>

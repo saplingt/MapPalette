@@ -107,9 +107,30 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
 
   const gestureKeyRef = useRef<string | null>(null)
+  const shareCopiedTimerRef = useRef<number | null>(null)
+
+  const flashShareCopied = useCallback(() => {
+    setShareCopied(true)
+    if (shareCopiedTimerRef.current != null) {
+      window.clearTimeout(shareCopiedTimerRef.current)
+    }
+    shareCopiedTimerRef.current = window.setTimeout(() => {
+      setShareCopied(false)
+      shareCopiedTimerRef.current = null
+    }, 2400)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (shareCopiedTimerRef.current != null) {
+        window.clearTimeout(shareCopiedTimerRef.current)
+      }
+    }
+  }, [])
 
   const { remap, siteRemap, previous, previousSites, stack, index } = editor
 
@@ -359,13 +380,43 @@ export default function App() {
 
   const handleShare = useCallback(async () => {
     const url = window.location.href
+    const payload = {
+      title: 'MapPalette',
+      text: styleName.trim() || styleId,
+      url,
+    }
+
+    // 僅窄螢幕／觸控裝置走原生分享；桌機一律複製網址
+    const preferNativeShare =
+      typeof window.matchMedia === 'function' &&
+      (window.matchMedia('(max-width: 900px)').matches ||
+        window.matchMedia('(hover: none) and (pointer: coarse)').matches)
+
+    // 1) 手機：系統原生分享（LINE、FB…）
+    // 2) 桌面：複製網址
+    // 3) 按鈕文案維持「分享網址」
+    if (preferNativeShare && typeof navigator.share === 'function') {
+      try {
+        const can =
+          typeof navigator.canShare !== 'function' || navigator.canShare(payload)
+        if (can) {
+          await navigator.share(payload)
+          return
+        }
+      } catch (err) {
+        // 使用者取消分享不算錯誤
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        // 分享失敗再退回複製
+      }
+    }
+
     try {
       await navigator.clipboard.writeText(url)
-      setStatusMessage('已複製分享網址（不含修改前顏色）')
+      flashShareCopied()
     } catch {
       setError('無法複製網址，請手動從網址列複製')
     }
-  }, [])
+  }, [styleId, styleName, flashShareCopied])
 
   const undoEnabled = canUndo(index)
   const redoEnabled = canRedo(index, stack.length)
@@ -391,6 +442,7 @@ export default function App() {
         loading={loading}
         error={error}
         statusMessage={statusMessage}
+        shareCopied={shareCopied}
         canUndo={undoEnabled}
         canRedo={redoEnabled}
         canClearHistory={hasLocalHistory}

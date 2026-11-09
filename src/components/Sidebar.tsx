@@ -24,6 +24,7 @@ interface SidebarProps {
   loading: boolean
   error: string | null
   statusMessage: string | null
+  shareCopied: boolean
   canUndo: boolean
   canRedo: boolean
   canClearHistory: boolean
@@ -89,6 +90,7 @@ export function Sidebar({
   loading,
   error,
   statusMessage,
+  shareCopied,
   canUndo,
   canRedo,
   canClearHistory,
@@ -240,13 +242,30 @@ export function Sidebar({
           <button type="button" className="btn btn-ghost" onClick={onReset} disabled={loading}>
             重設
           </button>
-          <button type="button" className="btn btn-ghost" onClick={onShare}>
-            分享網址
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={onCopy} disabled={loading}>
+          <span className="share-wrap">
+            <button type="button" className="btn btn-ghost btn-share-url" onClick={onShare}>
+              分享網址
+            </button>
+            {shareCopied && (
+              <span className="share-copied-tip" role="status" aria-live="polite">
+                複製成功
+              </span>
+            )}
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-copy-json"
+            onClick={onCopy}
+            disabled={loading}
+          >
             複製 JSON
           </button>
-          <button type="button" className="btn btn-solid" onClick={onDownload} disabled={loading}>
+          <button
+            type="button"
+            className="btn btn-solid btn-download-json"
+            onClick={onDownload}
+            disabled={loading}
+          >
             下載 JSON
           </button>
         </div>

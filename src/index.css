@@ -208,9 +208,12 @@ body {
   display: flex;
   flex-direction: column;
   width: 100%;
+  max-width: 100%;
   height: 100%;
   max-height: 100dvh;
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
   background:
     radial-gradient(ellipse 70% 45% at 12% 0%, rgba(126, 184, 168, 0.16), transparent 55%),
     linear-gradient(180deg, rgba(24, 40, 34, 0.99), rgba(12, 23, 20, 0.99));
@@ -234,9 +237,16 @@ body {
   justify-content: space-between;
   gap: 1rem;
   width: min(100%, 760px);
+  max-width: 100%;
+  min-width: 0;
   margin: 0 auto;
   padding: 1.5rem 1.5rem 1rem;
   border-bottom: 1px solid rgba(232, 239, 230, 0.08);
+}
+
+.help-modal-head > div {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .help-modal-kicker {
@@ -257,10 +267,13 @@ body {
   letter-spacing: -0.03em;
   line-height: 1.25;
   color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .help-modal-close {
   appearance: none;
+  flex-shrink: 0;
   width: 2.2rem;
   height: 2.2rem;
   border: 1px solid rgba(232, 239, 230, 0.14);
@@ -279,8 +292,11 @@ body {
 .help-modal-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   width: min(100%, 760px);
+  max-width: 100%;
   margin: 0 auto;
   padding: 0.5rem 1.5rem 1.25rem;
   -webkit-overflow-scrolling: touch;
@@ -309,6 +325,8 @@ body {
   font-size: 0.9rem;
   line-height: 1.65;
   color: rgba(232, 239, 230, 0.88);
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .help-section p + p {
@@ -330,12 +348,19 @@ body {
   background: rgba(0, 0, 0, 0.28);
   padding: 0.08em 0.35em;
   border-radius: 0.3rem;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .help-code {
+  display: block;
+  box-sizing: border-box;
   margin: 0.75rem 0 0;
   padding: 0.9rem 1rem;
-  overflow: auto;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
   border-radius: 0.65rem;
   border: 1px solid rgba(232, 239, 230, 0.1);
   background: rgba(0, 0, 0, 0.35);
@@ -350,7 +375,10 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+  flex-shrink: 0;
   width: min(100%, 760px);
+  max-width: 100%;
+  min-width: 0;
   margin: 0 auto;
   padding: 0.9rem 1.5rem 1.25rem;
   border-top: 1px solid rgba(232, 239, 230, 0.08);
@@ -360,8 +388,49 @@ body {
   .help-modal-head,
   .help-modal-body,
   .help-modal-foot {
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .help-modal-head {
+    padding-top: 1rem;
+    padding-bottom: 0.75rem;
+    gap: 0.65rem;
+  }
+
+  .help-modal-title {
+    font-size: 1.12rem;
+  }
+
+  .help-modal-body {
+    padding-top: 0.25rem;
+    padding-bottom: 1rem;
+  }
+
+  .help-section {
+    padding: 0.85rem 0;
+  }
+
+  .help-section h3 {
+    font-size: 0.95rem;
+  }
+
+  .help-section p,
+  .help-section li {
+    font-size: 0.84rem;
+    line-height: 1.6;
+  }
+
+  .help-code {
+    margin-top: 0.6rem;
+    padding: 0.7rem 0.75rem;
+    font-size: 0.64rem;
+    border-radius: 0.55rem;
+  }
+
+  .help-modal-foot {
+    padding-top: 0.75rem;
+    padding-bottom: max(0.9rem, env(safe-area-inset-bottom));
   }
 
   .help-trigger {
@@ -1044,6 +1113,75 @@ body {
   pointer-events: none;
 }
 
+.share-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.share-copied-tip {
+  /* 對齊 .style-chip.is-active 的視覺色，改成不透明 */
+  --tip-bg: #2e3c2a;
+  --tip-edge: #7a8c52;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.55rem);
+  z-index: 5;
+  transform: translateX(-50%);
+  padding: 0.28rem 0.55rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--tip-edge);
+  background: var(--tip-bg);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  animation: share-tip-in 0.18s ease both;
+}
+
+/* 旋轉菱形：兩條細邊接上外框，內部同氣泡底色 */
+.share-copied-tip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  background: var(--tip-bg);
+  border-right: 1px solid var(--tip-edge);
+  border-bottom: 1px solid var(--tip-edge);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+/* 蓋住底框與三角交界，讓線條連續 */
+.share-copied-tip::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  z-index: 1;
+  width: 10px;
+  height: 2px;
+  transform: translateX(-50%);
+  background: var(--tip-bg);
+}
+
+@keyframes share-tip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 .maplibregl-ctrl-attrib {
   font-size: 10px !important;
 }
@@ -1109,6 +1247,22 @@ body {
   .action-row .btn {
     padding: 0.38rem 0.55rem;
     font-size: 0.74rem;
+  }
+
+  /* 手機以分享網址為主；複製／下載大 JSON 體驗差 */
+  .btn-download-json,
+  .btn-copy-json {
+    display: none;
+  }
+
+  .btn-share-url {
+    background: var(--accent);
+    border-color: transparent;
+    color: #13201b;
+  }
+
+  .btn-share-url:hover:not(:disabled) {
+    filter: brightness(1.05);
   }
 
   .panel-palette {
