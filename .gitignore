@@ -12,10 +12,11 @@ dist
 dist-ssr
 *.local
 
-# Env（只提交 .env.example）
+# Env（公開的 production／example 可提交；本機覆寫不提交）
 .env
 .env.*
 !.env.example
+!.env.production
 
 # Editor directories and files
 .vscode/*
