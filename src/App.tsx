@@ -19,6 +19,7 @@ import {
 } from './lib/editHistory'
 import { styleDownloadFilename } from './lib/filename'
 import { parseHash, sanitizeStyleName, writeHash } from './lib/hashState'
+import { createShortlink, isShortlinkConfigured } from './lib/shortlink'
 import { fetchOfficialStyle, type StyleId } from './lib/styles'
 
 function emptySnap(
@@ -379,7 +380,26 @@ export default function App() {
   }, [remappedStyle, styleName, styleId])
 
   const handleShare = useCallback(async () => {
-    const url = window.location.href
+    // 先把目前色票／樣式狀態寫進 URL hash，再以此長網址建短碼（僅此時呼叫 API）
+    writeHash({ styleId, styleName, remap, siteRemap })
+    const longUrl = window.location.href
+
+    setError(null)
+    const short = await createShortlink(longUrl)
+    const usedShort = Boolean(short?.shortUrl)
+    const url = short?.shortUrl || longUrl
+
+    if (!usedShort && isShortlinkConfigured()) {
+      // API 已設定但失敗：退回長網址並提示
+      setStatusMessage('短網址建立失敗，已改用完整網址')
+    } else if (short?.reused) {
+      setStatusMessage('已重用既有短網址')
+    } else if (usedShort) {
+      setStatusMessage('已建立短網址')
+    } else {
+      setStatusMessage(null)
+    }
+
     const payload = {
       title: 'MapPalette',
       text: styleName.trim() || styleId,
@@ -416,7 +436,7 @@ export default function App() {
     } catch {
       setError('無法複製網址，請手動從網址列複製')
     }
-  }, [styleId, styleName, flashShareCopied])
+  }, [styleId, styleName, remap, siteRemap, flashShareCopied])
 
   const undoEnabled = canUndo(index)
   const redoEnabled = canRedo(index, stack.length)

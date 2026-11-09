@@ -29,6 +29,26 @@ npm run build
 npm run preview
 ```
 
+## 分享短網址（選用）
+
+同層的 `mappalette-shortlink`（Cloudflare Worker）可把長 hash 網址縮成短碼。  
+**只有按下「分享網址」時**才會呼叫 API；以當下長網址（含色票 hash）送出，由 Worker 內容 hash 去重（無則新建、有則重用）。不會預先批次建碼。
+
+環境變數（專案根目錄）：
+
+| 檔案 | 用途 |
+|------|------|
+| `.env`／`.env.production` | 正式／預設：已部署 Worker |
+| `.env.local` | 本機覆寫（已被 git ignore） |
+| `.env.example` | 範例說明 |
+
+```bash
+VITE_SHORTLINK_API=https://mappalette-shortlink.saplingt.workers.dev
+```
+
+本機若要打 `wrangler dev`，在 `.env.local` 改成 `http://127.0.0.1:8787` 後重啟 `npm run dev`。  
+API 失敗時會退回完整長網址並提示；未設定變數時行為與先前相同。
+
 ## OpenFreeMap 樣式網址
 
 實際使用的端點如下（直接回傳 style JSON；加上 `/style.json` 會得到 404）：
